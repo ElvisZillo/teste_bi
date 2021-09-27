@@ -1,0 +1,126 @@
+/////////////////////////Modelagem de dados(ETL) no QlikView\\\\\\\\\\\\\\\\\\\\\\\\
+
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep='.';
+SET MoneyDecimalSep=',';
+SET MoneyFormat='R$ #.##0,00;-R$ #.##0,00';
+SET TimeFormat='hh:mm:ss';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY hh:mm:ss[.fff]';
+SET MonthNames='jan;fev;mar;abr;mai;jun;jul;ago;set;out;nov;dez';
+SET DayNames='seg;ter;qua;qui;sex;sáb;dom';
+
+Temp:
+LOAD text(cd_cnpj) as cd_cnpj, 
+     nu_ordem, 
+     text(cd_ramo_atividade) as cd_ramo_atividade, 
+     de_ramo_atividade
+FROM
+[C:\Users\ELVIS\Desktop\Projeto Teste\CNAE.csv]
+(txt, codepage is 1252, embedded labels, delimiter is ';', msq);
+
+noconcatenate
+
+Temp_CNAE:
+load
+cd_cnpj, 
+subfield(nu_ordem,'~@~',1) as nu_ordem,
+text(subfield(cd_ramo_atividade,'~@~',1)) as cd_ramo_atividade,
+subfield(de_ramo_atividade,'~@~',1) as de_ramo_atividade,
+left(subfield(cd_ramo_atividade,'~@~',1),2) as Cod_Ramo 
+
+Resident Temp
+;
+
+set Int = 2;
+Do While Int <= 6
+Concatenate(Temp_CNAE)
+load
+cd_cnpj, 
+subfield(nu_ordem,'~@~',$(Int)) as nu_ordem,
+subfield(cd_ramo_atividade,'~@~',$(Int)) as cd_ramo_atividade,
+subfield(de_ramo_atividade,'~@~',$(Int)) as de_ramo_atividade,
+left(subfield(cd_ramo_atividade,'~@~',$(Int)),2) as Cod_Ramo 
+
+Resident Temp
+;
+
+Let Int = $(Int)+1;
+Loop
+
+drop table Temp;
+noconcatenate
+CNAE: load * Resident Temp_CNAE where not isnull(nu_ordem);
+
+drop table Temp_CNAE;
+
+
+////////// Setores\\\\\\\\\
+
+Setores:
+left join(CNAE)
+load rowno() as Cod,
+	 [Ramo de Atividade], 
+	 if(len([Ramo de Atividade]) <1 ,peek('Novo Ramo de Atividade'), [Ramo de Atividade]) as [Novo Ramo de Atividade],
+     Divisões, 
+     Cod_Ramo;
+
+LOAD rowno() as Cod,
+	 [Ramo de Atividade], 
+     Divisões, 
+     [(DIVISÃO - 2digitos CNAE)] as Cod_Ramo
+
+FROM
+[C:\Users\ELVIS\Desktop\Projeto Teste\Setores e Ramos de Atividade.csv]
+(txt, codepage is 1252, embedded labels, delimiter is ';', msq);
+
+drop field Cod, [Ramo de Atividade];
+
+
+
+
+store CNAE Into C:\Users\ELVIS\Desktop\Projeto Teste\CNAE_Setores.csv(txt, delimiter is ';');
+
+drop table CNAE;
+
+///////// Empresas \\\\\\\\\
+
+Empresas:
+LOAD text(cd_cnpj) as cd_cnpj, 
+     fl_matriz, 
+     date(subfield(dt_abertura,'/',2)&'/'&subfield(dt_abertura,'/',1)&'/'&subfield(dt_abertura,'/',3)) AS dt_abertura,  
+     nm_razao_social, 
+     cd_natureza_juridica, 
+     de_natureza_juridica, 
+     nm_logradouro, 
+     nu_logradouro, 
+     cd_cep, 
+     nm_bairro, 
+     nm_municipio, 
+     sg_uf, 
+     de_situacao, 
+     de_classif_natureza_juridica
+FROM
+[C:\Users\ELVIS\Desktop\Projeto Teste\empresas.csv]
+(txt, codepage is 1252, embedded labels, delimiter is ';', msq);
+
+left join(Empresas)
+
+LOAD text(cd_cnpj) as cd_cnpj, 
+     vl_latitude, 
+     vl_longitude, 
+     vl_total_veiculos_antt, 
+     vl_total_veiculos_leves, 
+     vl_total_veiculos_pesados, 
+     fl_optante_simples, 
+     qt_filial, 
+     fl_optante_simei, 
+     de_saude_tributaria, 
+     de_nivel_atividade
+FROM
+[C:\Users\ELVIS\Desktop\Projeto Teste\empresasCalc.csv]
+(txt, codepage is 1252, embedded labels, delimiter is ';', msq);
+
+store Empresas Into C:\Users\ELVIS\Desktop\Projeto Teste\Empresas_Completo.csv(txt, delimiter is ';');
+Drop table Empresas;
